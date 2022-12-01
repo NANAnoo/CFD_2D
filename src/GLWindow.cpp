@@ -6,18 +6,16 @@
 #include <thread>
 
 // pass callback from glfw window to GLWindow
-static std::unordered_map<GLFWwindow*, GLWindow*> all_windows;
-void framebuffer_size_callback(GLFWwindow* window, int width, int height)
-{
-    if (all_windows.find(window) != all_windows.end())
-    {
-        auto ptr = all_windows[window];
+static std::unordered_map<GLFWwindow *, GLWindow *> all_windows;
+
+void framebuffer_size_callback(GLFWwindow *window, int width, int height) {
+    if (all_windows.find(window) != all_windows.end()) {
+        GLWindow *ptr = all_windows[window];
         ptr->updateFrameSize(width, height);
     }
-}  
+}
 
-GLWindow::~GLWindow()
-{
+GLWindow::~GLWindow() {
     if (valid && window != nullptr) {
         all_windows.erase(window);
         glfwTerminate();
@@ -26,69 +24,64 @@ GLWindow::~GLWindow()
     std::cout << "GLWindow released" << std::endl;
 }
 
-void GLWindow::init()
-{
+void GLWindow::init() {
     // initial glfw
     valid = true;
-    if (!glfwInit())
-    {
+    if (!glfwInit()) {
         std::cout << "glfw init failed" << std::endl;
         valid = false;
     }
     // initial window
-    this->window = glfwCreateWindow(640, 480, "My Title", NULL, NULL);
+    this->window = glfwCreateWindow(640, 480, "My Title", nullptr, nullptr);
     if (!window) {
         std::cout << "glfw window create failed" << std::endl;
         valid = false;
     }
-    if (valid == true) {
+    if (valid) {
         glfwMakeContextCurrent(window);
         glfwSwapInterval(1);
-        
+
         // set up callbacks
         glfwSetErrorCallback(error_callback);
-        glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);  
+        glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
         valid = true;
         all_windows[window] = this;
     }
 }
 
-int GLWindow::run()
-{
+int GLWindow::run() {
     //updateFrameSize(width, height);
     std::chrono::steady_clock::time_point t_start, t_end;
     static std::chrono::steady_clock::time_point last_time, cur_time;
     last_time = std::chrono::high_resolution_clock::now();
-    while (!glfwWindowShouldClose(window))
-    {
+    while (!glfwWindowShouldClose(window)) {
         t_start = std::chrono::high_resolution_clock::now();
         render();
         GLenum e = glGetError();
         if (e > 0) {
-            std::cout << "opengl error " << e  << std::endl;
+            std::cout << "opengl error " << e << std::endl;
             return e;
         }
         t_end = std::chrono::high_resolution_clock::now();
-        double duration = (t_end - t_start).count()*1E-9;
+        double duration = (t_end - t_start).count() * 1E-9;
         if (duration < frame_update_duration) {
             duration = frame_update_duration - duration;
             std::this_thread::sleep_for(std::chrono::seconds() * duration);
         }
         cur_time = std::chrono::high_resolution_clock::now();
-        double frame_time = (cur_time - last_time).count()*1E-9;
+        double frame_time = (cur_time - last_time).count() * 1E-9;
         last_time = cur_time;
         std::cout << "FPS : " << 1.0 / frame_time << std::endl;
     }
     return 0;
 }
 
-void GLWindow::render()
-{
-    glClearColor(background_color.x, background_color.y, background_color.z , 1);
+void GLWindow::render() {
+    glClearColor(background_color.x(), background_color.y(), background_color.z(), 1);
     glClear(GL_COLOR_BUFFER_BIT);
 
     // update all objects
-    for (auto obj : render_objects) {
+    for (auto obj: render_objects) {
         obj->update();
     }
 
@@ -96,13 +89,12 @@ void GLWindow::render()
     glfwPollEvents();
 }
 
-void GLWindow::updateFrameSize(unsigned int w, unsigned int h)
-{
+void GLWindow::updateFrameSize(unsigned int w, unsigned int h) {
     width = w;
     height = h;
     glViewport(0, 0, w, h);
     // update aspect
-    float aspect = (float)w / (float)h;
+    float aspect = (float) w / (float) h;
 
     // set projection
     glMatrixMode(GL_PROJECTION);
@@ -110,7 +102,7 @@ void GLWindow::updateFrameSize(unsigned int w, unsigned int h)
     if (aspect > 1) {
         glOrtho(-aspect, aspect, -1, 1, -1, 1);
     } else {
-        glOrtho(-1, 1, - 1.0 / aspect, 1.0 / aspect, -1, 1);
+        glOrtho(-1, 1, -1.0 / aspect, 1.0 / aspect, -1, 1);
     }
     render();
 }

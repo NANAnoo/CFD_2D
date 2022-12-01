@@ -9,9 +9,10 @@
 
 #include <iostream>
 
+// callback used in glfw windows
 static void error_callback(int error, const char* description)
 {
-    fprintf(stderr, "Error: %s\n", description);
+    fprintf(stderr, "Error[%d]: %s\n", error, description);
 }
 
-#endif // gl hearders
+#endif // GL_HEADERS_H

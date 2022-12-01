@@ -21,3 +21,7 @@ Fluid2D::~Fluid2D()
 {
 }
 
+void Fluid2D::render() {
+
+}
+

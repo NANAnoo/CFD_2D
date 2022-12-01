@@ -4,7 +4,7 @@
 /* project includes */
 #include "GLHeaders.h"
 #include "GLRenderable.h"
-#include "Vec3.h"
+#include "Vec.h"
 
 /* std includes */
 #include <memory>
@@ -21,10 +21,10 @@ private:
     unsigned int height;
     /* glfw window */
     GLFWwindow* window;
-    /* all renderable objects*/
-    std::vector<std::shared_ptr<GLRenderableI>> render_objects;
+    /* all render-able objects*/
+    std::vector<std::shared_ptr<GLRenderableI> > render_objects;
     /* background color*/
-    Vec3 background_color;
+    vec3 background_color;
     /* valid */
     bool valid;
     /* 1. /  desire FPS*/
@@ -33,7 +33,7 @@ private:
     void init();
 
 public:
-    GLWindow(unsigned int w = 800, unsigned int h = 800):width(w), height(h)
+    explicit GLWindow(unsigned int w = 800, unsigned int h = 800):width(w), height(h), window(nullptr), valid(false)
     {
         frame_update_duration = 1.0 / 60.0;
         init();
@@ -43,18 +43,18 @@ public:
     int run();
     /* main render */
     void render();
-    /* add renderobject */
-    void addRenderObject(std::shared_ptr<GLRenderableI> obj) {
+    /* add render object */
+    void addRenderObject(std::shared_ptr<GLRenderableI> &obj) {
         render_objects.push_back(obj);
     };
     /* setup background color */
     void setBackgroundColor(float r, float g, float b) {
-        background_color.x = r;
-        background_color.y = g;
-        background_color.z = b;
+        background_color.x() = r;
+        background_color.y() = g;
+        background_color.z() = b;
     }
     /* is valid */
-    bool isValid()
+    bool isValid() const
     {
         return valid;
     }
