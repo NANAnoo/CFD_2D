@@ -18,8 +18,8 @@ void framebuffer_size_callback(GLFWwindow *window, int width, int height) {
 GLWindow::~GLWindow() {
     if (valid && window != nullptr) {
         all_windows.erase(window);
-        glfwTerminate();
         glfwDestroyWindow(window);
+        glfwTerminate();
     }
     std::cout << "GLWindow released" << std::endl;
 }
@@ -32,7 +32,7 @@ void GLWindow::init() {
         valid = false;
     }
     // initial window
-    this->window = glfwCreateWindow(640, 480, "My Title", nullptr, nullptr);
+    this->window = glfwCreateWindow(640, 480, w_name, nullptr, nullptr);
     if (!window) {
         std::cout << "glfw window create failed" << std::endl;
         valid = false;

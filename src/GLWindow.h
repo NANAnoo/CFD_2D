@@ -19,6 +19,8 @@ private:
     unsigned int width;
     /* windows height*/
     unsigned int height;
+    /* windows name */
+    const char *w_name;
     /* glfw window */
     GLFWwindow* window;
     /* all render-able objects*/
@@ -33,7 +35,7 @@ private:
     void init();
 
 public:
-    explicit GLWindow(unsigned int w = 800, unsigned int h = 800):width(w), height(h), window(nullptr), valid(false)
+    explicit GLWindow(unsigned int w = 800, unsigned int h = 800, const char *name = "new window"): w_name(name), width(w), height(h), window(nullptr), valid(false)
     {
         frame_update_duration = 1.0 / 60.0;
         init();
@@ -44,7 +46,7 @@ public:
     /* main render */
     void render();
     /* add render object */
-    void addRenderObject(std::shared_ptr<GLRenderableI> &obj) {
+    void addRenderObject(std::shared_ptr<GLRenderableI> obj) {
         render_objects.push_back(obj);
     };
     /* setup background color */

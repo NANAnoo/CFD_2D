@@ -5,7 +5,7 @@ file(GLOB cpp_files
      "src/*.cpp"
 )
 
-add_executable(CFD_2D ${cpp_files} src/SmoothKernels.cpp src/SmoothKernels.h)
+add_executable(CFD_2D ${cpp_files} src/SmoothKernelIMPL.h src/SmoothKernels.h)
 find_package(OpenGL REQUIRED)
 
 if (CMAKE_HOST_APPLE)
@@ -18,7 +18,7 @@ target_link_libraries(CFD_2D ${LIBRARIES})
 set_target_properties(CFD_2D PROPERTIES LINK_FLAGS "-Wl,-F/Library/Frameworks")
 endif()
 
-set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++17")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++17")
 set(CPACK_PROJECT_NAME ${PROJECT_NAME})
 set(CPACK_PROJECT_VERSION ${PROJECT_VERSION})
 include(CPack)

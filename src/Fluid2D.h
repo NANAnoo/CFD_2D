@@ -39,17 +39,17 @@ class Fluid2D : public GLRenderableI
         // initial 
         void (*init_positions)(std::vector<vec2> &positions);
         // smooth kernels
-        SmoothKernels::SmoothKernel *pressure_kernel;
-        SmoothKernels::SmoothKernel *viscosity_kernel;
-        SmoothKernels::SmoothKernel *surface_tension_kernel;
+        SmoothKernels::SmoothKernel<D2> *pressure_kernel;
+        SmoothKernels::SmoothKernel<D2> *viscosity_kernel;
+        SmoothKernels::SmoothKernel<D2> *surface_tension_kernel;
 
         Fluid2DParameters() :
                 top(1), bottom(-1), left(-1), right(1), grid_size(20),
                 particle_count(1000), particle_mass(1), gravity(vec2(0, -1)),
                 rho_0(1), K(1), V(1), sigma(1), init_positions(nullptr),
-                pressure_kernel(&(SmoothKernels::Poly6())),
-                viscosity_kernel(&(SmoothKernels::DebrunSpiky())),
-                surface_tension_kernel(&(SmoothKernels::Poly6()))
+                pressure_kernel(&(SmoothKernels::Poly6<D2>())),
+                viscosity_kernel(&(SmoothKernels::DebrunSpiky<D2>())),
+                surface_tension_kernel(&(SmoothKernels::Poly6<D2>()))
         {
             // default values;
         }
