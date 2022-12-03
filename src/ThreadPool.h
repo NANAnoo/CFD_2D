@@ -6,39 +6,37 @@
 #include <mutex>
 #include <functional>
 #include <memory>
+#include <pthread.h>
 
-namespace nano_std
-{
-    template <typename T>
-    class TSafeQueue
-    {
+namespace nano_std {
+    template<typename T>
+    class TSafeQueue {
     private:
         std::mutex mut;
         std::queue<T> data_queue;
 
     public:
-        TSafeQueue()
-        {
+        TSafeQueue() {
         }
-        TSafeQueue(TSafeQueue const &other)
-        {
+
+        TSafeQueue(TSafeQueue const &other) {
             std::lock_guard<std::mutex> lock(other.mut);
             data_queue = other.data_queue;
         }
-        void push(T value)
-        {
+
+        void push(T value) {
             std::lock_guard<std::mutex> lock(mut);
             data_queue.push(value);
         }
-        std::shared_ptr<T> pop()
-        {
+
+        std::shared_ptr<T> pop() {
             std::lock_guard<std::mutex> lock(mut);
             std::shared_ptr<T> res(std::make_shared<T>(data_queue.front()));
             data_queue.pop();
             return res;
         }
-        std::shared_ptr<T> try_pop()
-        {
+
+        std::shared_ptr<T> try_pop() {
             std::lock_guard<std::mutex> lock(mut);
             if (data_queue.empty())
                 return std::shared_ptr<T>();
@@ -46,88 +44,115 @@ namespace nano_std
             data_queue.pop();
             return res;
         }
+
         bool size() {
             std::lock_guard<std::mutex> lock(mut);
             return data_queue.size();
         }
-        bool empty()
-        {
+
+        bool empty() {
             std::lock_guard<std::mutex> lock(mut);
             return data_queue.empty();
         }
+
+        void clear() {
+            std::lock_guard<std::mutex> lock(mut);
+            while (!data_queue.empty())data_queue.pop();
+        }
     };
 
-    class WorkerThread
-    {
+    class WorkerThread {
     private:
         TSafeQueue<std::function<void(void)>> queue;
         std::thread t;
         std::mutex mux;
+        std::condition_variable thread_returned;
+        std::thread::id tid;
+        std::string name;
         bool is_running;
-        bool isRunning()
-        {
+        bool thread_stopped;
+
+        bool isRunning() {
             std::unique_lock<std::mutex> lock(mux);
             return is_running;
         }
-        void setRuning(bool running)
-        {
+
+        void isRunning(bool running) {
             std::lock_guard<std::mutex> lock(mux);
             is_running = running;
+            if (running) {
+                thread_stopped = false;
+            }
         }
 
     public:
-        WorkerThread()
-        {
+        WorkerThread() {
             is_running = false;
+            thread_stopped = true;
         };
 
-        ~WorkerThread()
-        {
+        ~WorkerThread() {
+            queue.clear();
             stop();
         }
 
-        void run()
-        {
-            setRuning(true);
+        void run() {
+            isRunning(true);
             t = std::move(std::thread(&WorkerThread::mainLoop, this));
+            tid = t.get_id();
             t.detach();
         }
 
-        void stop()
-        {
-            setRuning(false);
+        void setName(std::string n) {
+            std::unique_lock<std::mutex> lock(mux);
+            this->name = n;
         }
 
-        void insertTask(std::function<void(void)> &task)
-        {
+        std::string getName() {
+            std::unique_lock<std::mutex> lock(mux);
+            return this->name;
+        }
+
+
+        void stop() {
+            isRunning(false);
+            std::unique_lock<std::mutex> lock(mux);
+            thread_returned.wait(lock, [this] {
+                std::this_thread::sleep_for(std::chrono::milliseconds(10));
+                return thread_stopped;
+            });
+        }
+
+        void insertTask(std::function<void(void)> &task) {
             queue.push(task);
         }
 
-        int remainTasks()
-        {
+        int remainTasks() {
             return queue.size();
         }
 
         // main loop
-        void mainLoop()
-        {
-            do
-            {
-                if (isRunning() && !queue.empty())
-                {
+        void mainLoop() {
+            std::string n = getName();
+            if (n.size() > 0) {
+                pthread_setname_np(getName().c_str());
+            }
+            do {
+                if (isRunning() && !queue.empty()) {
                     std::function<void(void)> task = *(queue.pop());
                     task();
-                } else
-                {
+                } else {
                     // else sleep for a while
                     std::this_thread::sleep_for(std::chrono::milliseconds(1));
                 }
             } while (isRunning());
+            std::unique_lock<mutex> lk(mux);
+            thread_stopped = true;
+            thread_returned.notify_one();
         }
     };
-
-    class ThreadPool
-    {
+static int wid = 0;
+    class ThreadPool {
     private:
         TSafeQueue<std::function<void(void)>> queue;
         std::vector<WorkerThread *> workers;
@@ -136,44 +161,49 @@ namespace nano_std
         unsigned int max_index;
 
     public:
-        explicit ThreadPool(unsigned int count)
-        {
+        explicit ThreadPool(unsigned int count) {
             max_index = count;
             current_index = 0;
-            for (unsigned int i = 0; i < count; i++)
-            {
+            for (unsigned int i = 0; i < count; i++) {
                 auto *worker = new WorkerThread();
+                worker->setName("nano" + std::to_string(wid++));
                 worker->run();
                 workers.push_back(worker);
             }
         };
-        void doAsync(std::function<void(void)> task)
-        {
+
+        ~ThreadPool() {
+            for (auto w: workers) {
+                w->stop();
+                delete w;
+            }
+        }
+
+        void doAsync(std::function<void(void)> task) {
             current_index = (current_index + 1) % max_index;
             workers[current_index]->insertTask(task);
         }
-        void doSync(std::function<void(void)> task)
-        {
+
+        void doSync(std::function<void(void)> task) {
             std::mutex mux;
             mux.lock();
-            doAsync([&mux, &task]()
-                    {
-                        if (task) {
-                            task();
-                        }
-                        mux.unlock(); });
+            doAsync([&mux, &task]() {
+                if (task) {
+                    task();
+                }
+                mux.unlock();
+            });
             mux.lock();
         }
 
-        void syncGroup(std::vector<std::function<void(void)>> &tasks, int batch_size = 1)
-        {
+        void syncGroup(std::vector<std::function<void(void)>> &tasks, int batch_size = 1) {
             std::vector<std::function<void(void)>> real_tasks;
             if (batch_size > 1) {
                 int real_size = tasks.size() / batch_size + 1;
                 real_tasks.resize(real_size);
-                for (unsigned int i = 0; i < real_size; i ++) {
-                    real_tasks[i] = [&tasks, i, batch_size](){
-                        for (int j = 0; j < batch_size; j ++) {
+                for (unsigned int i = 0; i < real_size; i++) {
+                    real_tasks[i] = [&tasks, i, batch_size]() {
+                        for (int j = 0; j < batch_size; j++) {
                             int index = i * batch_size + j;
                             if (index < tasks.size()) {
                                 tasks[index]();
@@ -186,9 +216,8 @@ namespace nano_std
             }
             int count = real_tasks.size();
             std::mutex mx;
-            for (auto task : real_tasks)
-            {
-                doAsync([task, this, &mx, &count](){
+            for (auto task: real_tasks) {
+                doAsync([task, this, &mx, &count]() {
                     task();
                     std::unique_lock<std::mutex> lock(mx);
                     if ((--count) == 0) {
@@ -197,8 +226,7 @@ namespace nano_std
                 });
             }
             std::unique_lock<std::mutex> lock(mx);
-            is_empty.wait(lock, [&count]
-            {
+            is_empty.wait(lock, [&count] {
                 return count == 0;
             });
         }

@@ -64,6 +64,14 @@ void Fluid2D::start() {
     dispatcher.run();
 }
 
+void Fluid2D::resetWithCallback(std::function<void()> callback) {
+    stop();
+    pool->doSync([this, &callback](){
+        init();
+        callback();
+    });
+}
+
 void Fluid2D::step() {
     TicTok t("step");
     index_all_particles();
@@ -75,7 +83,15 @@ void Fluid2D::step() {
         velocity_half[i] = velocities[i] + dv;
         vec2 dp = velocity_half[i] * params.delta_t;
         // update position and boundary check
-        positions[i] = positions[i] + dp;
+        vec2 next_position = positions[i] + dp;
+        int index = cell_index_at(next_position.x(), next_position.y());
+        // hit a wall, trace back and set velocity as zero
+        if (walls.find(index) == walls.end()) {
+            positions[i] = next_position;
+        } else {
+            velocity_half[i].x() = - 0.3f * velocity_half[i].x();
+            velocity_half[i].y() = - 0.3f * velocity_half[i].y();
+        }
         update_boundary(i, positions, velocity_half);
     }
     // update velocities
@@ -141,10 +157,6 @@ void Fluid2D::acceleration(const std::vector<vec2 > &position,
                     p = p + params.particle_mass * (*params.rho_kernel)(dr, params.h);
                 }
                 pho[particle] = p;
-//                // add border pho
-//                if (i == 0 || j == 0 || i == grid_raw - 1 || j == grid_col - 1) {
-//                    pho[particle] += params.rho_0 * 10;
-//                }
             }
         }
     }
@@ -169,6 +181,7 @@ void Fluid2D::acceleration(const std::vector<vec2 > &position,
                 }
                 for (int particle: cellAt(j, i)) {
                     tasks.emplace_back([this, particle, i, j, &all_groups, n, &position, &velocity, &pho, &acc]() {
+                        if (!this->is_running) {return;}
                         acceleration_at(particle,
                                         n,
                                         all_groups[i * grid_col + j],
@@ -200,9 +213,7 @@ void Fluid2D::acceleration_at(int p_index,
     float rho_p = pho_s[p_index];
     float rho_p_2 = rho_p * 2;
     float pr = params.K * (rho_p - params.rho_0);
-////    /* damp */
-//    vec2 damp = vel * -0.1;
-//    ac = ac + damp;
+
     /* internal force */
     if (params.pressure_kernel != nullptr) {
         for (int other: neighbours) {
@@ -251,23 +262,22 @@ void Fluid2D::update_boundary(int p_index, std::vector<vec2 > &position, std::ve
     vec2 pos = position[p_index];
     if (pos.x() < params.left) {
         position[p_index].x() = params.left + std::numeric_limits<float>::epsilon();
-        velocity[p_index].x() = -velocity[p_index].x();
+        velocity[p_index].x() = - 0.1f * velocity[p_index].x();
     } else if (pos.x() > params.right) {
         position[p_index].x() = params.right - std::numeric_limits<float>::epsilon();
-        velocity[p_index].x() = -velocity[p_index].x();
+        velocity[p_index].x() = - 0.1f * velocity[p_index].x();
     }
     if (pos.y() < params.bottom) {
         position[p_index].y() = params.bottom + std::numeric_limits<float>::epsilon();
-        velocity[p_index].y() = -velocity[p_index].y();
+        velocity[p_index].y() = - 0.1f * velocity[p_index].y();
     } else if (pos.y() > params.top) {
         position[p_index].y() = params.top - +std::numeric_limits<float>::epsilon();
-        velocity[p_index].y() = -velocity[p_index].y();
+        velocity[p_index].y() = - 0.1f * velocity[p_index].y();
     }
 }
 
 void Fluid2D::render() {
     TicTok t("render");
-    glLoadIdentity();
     glScalef(scale, scale, scale);
     glColor3f(0.3, 0.5, 0.8);
     glPointSize(2);
@@ -296,9 +306,22 @@ void Fluid2D::render() {
         glVertex3f(params.right  - center_x, - center_y + grid_h * y, 0);
     }
     glEnd();
+    // render wall
+    glColor3f(1, 0.6, 0.2);
+    glPointSize(5);
+    glBegin(GL_POINTS);
+    for (int wall:walls) {
+        int y = wall / grid_col;
+        int x = wall % grid_col;
+        glVertex3f(grid_w * x + grid_w / 2 - center_x, grid_h * y + grid_h/2 - center_y, 0);
+    }
+
+    glEnd();
 }
 
 Fluid2D::~Fluid2D() {
+    this->stop();
+    dispatcher.stop();
     delete pool;
 }
 

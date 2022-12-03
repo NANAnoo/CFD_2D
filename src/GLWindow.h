@@ -10,6 +10,7 @@
 #include <memory>
 #include <vector>
 
+class GLWindowEventHandler;
 class GLWindow
 {
 private:
@@ -71,7 +72,19 @@ public:
     /* set up size */
     void updateFrameSize(unsigned int w, unsigned int h);
 
+    /* delegate */
+    std::weak_ptr<GLWindowEventHandler> delegate;
+
     ~GLWindow();
+};
+
+// event delegate
+class GLWindowEventHandler {
+public:
+    // keyboard callbacks
+    virtual void keyDown(GLWindow *window, int key) = 0;
+    virtual void keyUp(GLWindow *window, int key) = 0;
+    // ... WIP others
 };
 
 #endif // GL_WINDOW_H

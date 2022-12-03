@@ -60,8 +60,7 @@ namespace SmoothKernels {
             this->dd_func = lf;
         }
     };
-
-
+    // default kernels
     template<VectorSize size> SmoothKernel<size> &Poly6()
     {
         static SmoothKernel<size> s_poly6(poly6<size>, d_poly6<size>, dd_poly6<size>);

@@ -4,7 +4,7 @@
 #include "GLRenderable.h"
 #include "Vec.h"
 #include <vector>
-#include <unordered_map>
+#include <unordered_set>
 #include <type_traits>
 #include "SmoothKernels.h"
 #include "ThreadPool.h"
@@ -48,8 +48,8 @@ public:
         SmoothKernels::SmoothKernel<D2> *viscosity_kernel;
         SmoothKernels::SmoothKernel<D2> *surface_tension_kernel;
 
-        Fluid2DParameters() :
-                top(1), bottom(-1), left(-1), right(1), h(1),
+        Fluid2DParameters():
+                top(1), bottom(-1), left(-1), right(1), h(1), delta_t(0.05),
                 particle_count(1000), particle_mass(1), gravity(vec2(0, -1)),
                 rho_0(1), K(1), V(1), sigma(1), init_positions(nullptr),
                 rho_kernel(&(SmoothKernels::Poly6<D2>())),
@@ -74,14 +74,24 @@ public:
         is_running = false;
     }
 
+    bool isRunning() const {
+        return is_running;
+    }
+
+    void addWall(int x, int y) {
+        walls.insert(y * grid_col + x);
+    }
+
+    void resetWithCallback(std::function<void(void)> callback);
+
     // render scale
     void setScale(float s) {
         this->scale = s;
     }
-
-private:
     // simulation params
     Fluid2DParameters params;
+
+private:
     // particles position
     std::vector<vec2 > positions;
     // used for buffer swapped
@@ -90,11 +100,27 @@ private:
     std::vector<vec2 > velocities;
     // current accelerations
     std::vector<vec2 > acc_s;
+    // walls
+    std::unordered_set<int> walls;
 
     // a grid used for acceleration
     std::vector<std::vector<int> > grid;
     int grid_raw;
     int grid_col;
+
+    inline int cell_index_at(float x, float y) const {
+        float grid_bottom = params.bottom - params.h / 2;
+        float grid_left = params.left - params.h / 2;
+        float dy = y - grid_bottom;
+        float dx = x - grid_left;
+        // boundary check
+        if (dx > 0 && dy > 0) {
+            int col_index = ::floor(dx / params.h);
+            int raw_index = ::floor(dy / params.h);
+            return raw_index * grid_col + col_index;
+        }
+        return -1;
+    }
 
     inline bool inGrid(int x, int y) const {
         return x < grid_col && x >= 0 && y < grid_raw && y >= 0;

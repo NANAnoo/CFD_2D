@@ -4,10 +4,7 @@
 class GLRenderableI {
 public:
     virtual void update() = 0; 
-    virtual ~GLRenderableI()
-    {
-
-    }
+    virtual ~GLRenderableI() = default;
 };
 
 #endif //GL_REANDERABLE_H
