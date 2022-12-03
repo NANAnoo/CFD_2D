@@ -1,6 +1,9 @@
 #include "GLWindow.h"
 #include "GLRenderable.h"
 #include "SmoothKernels.h"
+#include "Fluid2D.h"
+#include <chrono>
+#include <random>
 
 using namespace std;
 
@@ -20,12 +23,12 @@ public:
         glLineWidth(2);
         glBegin(GL_LINES);
         vec2 p(- 1.f, 0);
-        float left = (*k)(p, 1);
+        float left = (*k)(p, 0.1);
         float _x = -1;
         for (unsigned int x = 1; x < 1000; x ++) {
             float _x_ = (float)x / 500.f  - 1.f;
             p = vec2( _x_, 0);
-            float right = (*k)(p, 1);
+            float right = (*k)(p, 0.1);
             glVertex3f(_x, left, 0);
             glVertex3f(_x_, right, 0);
             left = right;
@@ -79,12 +82,45 @@ public:
 };
 
 int main(int, char **) {
-    auto kernel = SmoothKernels::Viscosity<D2>();
-    GLWindow window(800, 600, "SPH 2D");
+    int width = 800;
+    int height = 500;
+    // simulate parameters
+    Fluid2D::Fluid2DParameters params;
+    params.delta_t = 0.05;
+    params.top = height / 10.f;
+    params.bottom = 0;
+    params.left = 0;
+    params.right = width / 10.f;
+    params.rho_0 = 10;
+    params.K = 1;
+    params.V = 0.3;
+    params.sigma = 0.1;
+    params.particle_count = 5000;
+    params.gravity = vec2(0, -1);
+    params.rho_kernel = &SmoothKernels::Poly6<D2>();
+    params.pressure_kernel = &SmoothKernels::DebrunSpiky<D2>();
+    params.viscosity_kernel = &SmoothKernels::Viscosity<D2>();
+    params.surface_tension_kernel = &SmoothKernels::Poly6<D2>();
+    params.h = 1;
+    params.init_positions = [](std::vector<Vec<D2>> &positions,float t,float b,float l,float r) {
+        float unit_size = std::min((r - l), (t - b)) / 10;
+        for (auto &p : positions) {
+            p.x() = unit_size * ((float(std::rand()) / float(RAND_MAX) * 4 + 3)) + l;
+            p.y() = unit_size * ((float(std::rand()) / float(RAND_MAX) * 6 + 3.5)) + b;
+        }
+    };
+
+    // init fluid
+    auto fluid = std::make_shared<Fluid2D>(params);
+    fluid->setScale(20.f / float(std::min(width, height)));
+
+    // build window
+    GLWindow window(800, 500, "SPH 2D");
+    window.updateFPS(120);
     if (window.isValid()) {
-        window.setBackgroundColor(0.2, 0.2, 0.3);
-        auto k_ptr = std::make_shared<KernelViewer>(&kernel);
-        window.addRenderObject(k_ptr);
+        window.setBackgroundColor(0.1, 0.0, 0.1);
+        window.addRenderObject(fluid);
+        fluid->start();
         return window.run();
     } else {
         std::cout << "Error occurs when window created" << std::endl;

@@ -117,6 +117,9 @@ KERNEL_IMPL
 // -r * (45 / pi * h^6 * |r|) * (h - |r|)^2
  -45 / (PI * c_pow<6>(h)),
  {
+     if (length < std::numeric_limits<float>::epsilon()) {
+         return Vec<size> ();
+     }
      float sub = h - length;
      return r * (scale / length * sub * sub);
  },
@@ -138,6 +141,9 @@ KERNEL_IMPL
 // r * 15 / (2 * pi * h ^ 3) * ( - 3 * |r|^2 / (2 * h^3) + 2 / h ^ 2 - h / (2 * |r|^3))
  15 / (2 * PI * c_pow<3>(h)),
  {
+    if (length < std::numeric_limits<float>::epsilon()) {
+        return Vec<size> ();
+    }
     float const_value = scale * ( - 3 * length / (2 * h * h * h)
                                 + 2 / (h * h)
                                 - h / (2 * length * length * length));

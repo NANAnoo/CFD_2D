@@ -5,7 +5,7 @@ file(GLOB cpp_files
      "src/*.cpp"
 )
 
-add_executable(CFD_2D ${cpp_files} src/SmoothKernelIMPL.h src/SmoothKernels.h)
+add_executable(CFD_2D ${cpp_files} src/SmoothKernelIMPL.h src/SmoothKernels.h src/ThreadPool.h)
 find_package(OpenGL REQUIRED)
 
 if (CMAKE_HOST_APPLE)

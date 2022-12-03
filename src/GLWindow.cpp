@@ -32,7 +32,7 @@ void GLWindow::init() {
         valid = false;
     }
     // initial window
-    this->window = glfwCreateWindow(640, 480, w_name, nullptr, nullptr);
+    this->window = glfwCreateWindow(width, height, w_name, nullptr, nullptr);
     if (!window) {
         std::cout << "glfw window create failed" << std::endl;
         valid = false;
@@ -50,7 +50,15 @@ void GLWindow::init() {
 }
 
 int GLWindow::run() {
-    //updateFrameSize(width, height);
+    float aspect = (float) width / (float) height;
+    // set aspect
+    glMatrixMode(GL_PROJECTION);
+    glLoadIdentity();
+    if (aspect > 1) {
+        glOrtho(-aspect, aspect, -1, 1, -1, 1);
+    } else {
+        glOrtho(-1, 1, -1.0 / aspect, 1.0 / aspect, -1, 1);
+    }
     std::chrono::steady_clock::time_point t_start, t_end;
     static std::chrono::steady_clock::time_point last_time, cur_time;
     last_time = std::chrono::high_resolution_clock::now();
@@ -80,6 +88,8 @@ void GLWindow::render() {
     glClearColor(background_color.x(), background_color.y(), background_color.z(), 1);
     glClear(GL_COLOR_BUFFER_BIT);
 
+    glMatrixMode(GL_MODELVIEW);
+    glLoadIdentity();
     // update all objects
     for (auto obj: render_objects) {
         obj->update();
