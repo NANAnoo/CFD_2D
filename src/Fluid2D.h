@@ -9,6 +9,16 @@
 #include "SmoothKernels.h"
 #include "ThreadPool.h"
 
+class BoundaryI {
+public:
+    virtual void updateCS(float top, float bottom, float right, float left) = 0;
+    // index : particle index
+    // next_pos : check next position with the boundary
+    // all_pos, all_vel : particles positions and velocities
+    virtual bool updateAt(int index, vec2 next_pos, std::vector<vec2> &all_pos, std::vector<vec2> &all_vel) = 0;
+    virtual bool isSeperated(vec2 a, vec2 b) = 0;
+};
+
 class Fluid2D final : public GLRenderableI {
 public:
     struct Fluid2DParameters {
@@ -78,8 +88,9 @@ public:
         return is_running;
     }
 
-    void addWall(int x, int y) {
-        walls.insert(y * grid_col + x);
+    void addBoundary(std::shared_ptr<BoundaryI> b) {
+        b->updateCS(params.top, params.bottom, params.right, params.left);
+        boundaries.push_back(b);
     }
 
     void resetWithCallback(std::function<void(void)> callback);
@@ -100,27 +111,13 @@ private:
     std::vector<vec2 > velocities;
     // current accelerations
     std::vector<vec2 > acc_s;
-    // walls
-    std::unordered_set<int> walls;
+    // boundaries
+    std::vector<std::shared_ptr<BoundaryI>> boundaries;
 
     // a grid used for acceleration
     std::vector<std::vector<int> > grid;
     int grid_raw;
     int grid_col;
-
-    inline int cell_index_at(float x, float y) const {
-        float grid_bottom = params.bottom - params.h / 2;
-        float grid_left = params.left - params.h / 2;
-        float dy = y - grid_bottom;
-        float dx = x - grid_left;
-        // boundary check
-        if (dx > 0 && dy > 0) {
-            int col_index = ::floor(dx / params.h);
-            int raw_index = ::floor(dy / params.h);
-            return raw_index * grid_col + col_index;
-        }
-        return -1;
-    }
 
     inline bool inGrid(int x, int y) const {
         return x < grid_col && x >= 0 && y < grid_raw && y >= 0;
@@ -145,9 +142,27 @@ private:
                          const std::vector<vec2 > &position,
                          const std::vector<vec2 > &velocity,
                          const std::vector<float> &pho_s,
-                         std::vector<vec2 > &acc) const;
+                         std::vector<vec2 > &acc);
 
     void update_boundary(int p_index, std::vector<vec2 > &position, std::vector<vec2 > &velocity) const;
+
+    bool isSeperatedByBoundaries(int index1, int index2, const std::vector<vec2> &positions) {
+        for (auto &b : boundaries) {
+            if (b->isSeperated(positions[index1], positions[index2])) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    bool isSeperatedByBoundaries(vec2 v1, vec2 v2) {
+        for (auto &b : boundaries) {
+            if (b->isSeperated(v1, v2)) {
+                return true;
+            }
+        }
+        return false;
+    }
 
     // thread
     nano_std::WorkerThread dispatcher;

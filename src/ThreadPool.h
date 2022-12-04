@@ -143,7 +143,7 @@ namespace nano_std {
                     task();
                 } else {
                     // else sleep for a while
-                    std::this_thread::sleep_for(std::chrono::milliseconds(1));
+                    std::this_thread::sleep_for(std::chrono::milliseconds (1));
                 }
             } while (isRunning());
             std::unique_lock<mutex> lk(mux);

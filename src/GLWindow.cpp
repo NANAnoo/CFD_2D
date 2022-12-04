@@ -77,8 +77,6 @@ int GLWindow::run() {
         glOrtho(-1, 1, -1.0 / aspect, 1.0 / aspect, -1, 1);
     }
     std::chrono::steady_clock::time_point t_start, t_end;
-    static std::chrono::steady_clock::time_point last_time, cur_time;
-    last_time = std::chrono::high_resolution_clock::now();
     while (!glfwWindowShouldClose(window)) {
         t_start = std::chrono::high_resolution_clock::now();
         render();
@@ -93,10 +91,6 @@ int GLWindow::run() {
             duration = frame_update_duration - duration;
             std::this_thread::sleep_for(std::chrono::seconds() * duration);
         }
-        cur_time = std::chrono::high_resolution_clock::now();
-        double frame_time = (cur_time - last_time).count() * 1E-9;
-        last_time = cur_time;
-        std::cout << "FPS : " << 1.0 / frame_time << std::endl;
     }
     return 0;
 }
