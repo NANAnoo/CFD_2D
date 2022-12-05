@@ -62,10 +62,10 @@ public:
                 top(1), bottom(-1), left(-1), right(1), h(1), delta_t(0.05),
                 particle_count(1000), particle_mass(1), gravity(vec2(0, -1)),
                 rho_0(1), K(1), V(1), sigma(1), init_positions(nullptr),
-                rho_kernel(&(SmoothKernels::Poly6<D2>())),
-                pressure_kernel(&(SmoothKernels::DebrunSpiky<D2>())),
-                viscosity_kernel(&(SmoothKernels::Viscosity<D2>())),
-                surface_tension_kernel(&(SmoothKernels::Poly6<D2>())) {
+                rho_kernel(nullptr),
+                pressure_kernel(nullptr),
+                viscosity_kernel(nullptr),
+                surface_tension_kernel(nullptr) {
             // default values;
         }
     };

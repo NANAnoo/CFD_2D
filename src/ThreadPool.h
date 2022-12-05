@@ -146,7 +146,7 @@ namespace nano_std {
                     std::this_thread::sleep_for(std::chrono::milliseconds (1));
                 }
             } while (isRunning());
-            std::unique_lock<mutex> lk(mux);
+            std::unique_lock<std::mutex> lk(mux);
             thread_stopped = true;
             thread_returned.notify_one();
         }

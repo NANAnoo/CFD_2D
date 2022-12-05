@@ -55,7 +55,7 @@ void Fluid2D::start() {
     acc_s.clear();
     acc_s.resize(params.particle_count);
     acceleration(positions, velocities, acc_s);
-    function<void()> task = [this]() {
+    std::function<void()> task = [this]() {
         while (this->is_running) {
             TicTok t("one step duration");
             this->step();
@@ -143,11 +143,11 @@ void Fluid2D::acceleration(const std::vector<vec2 > &position,
     // foreach grid cell, calculate all neighbours
     std::vector<std::vector<int> > all_groups(grid_col * grid_raw);
     std::vector<float> pho(params.particle_count);
-    std::vector<function<void(void)>> tasks;
+    std::vector<std::function<void(void)>> tasks;
     for (int i = 0; i < grid_raw; i++) {
         for (int j = 0; j < grid_col; j++) {
             // all particles indices in a 3 x 3 grid whose center is cell
-            vector<int> group;
+            std::vector<int> group;
             for (int k = -1; k < 2; k++) {
                 for (int d = -1; d < 2; d++) {
                     if (inGrid(j + k, i + d)) {
@@ -171,7 +171,7 @@ void Fluid2D::acceleration(const std::vector<vec2 > &position,
                         if (!isSeperatedByBoundaries(particle, other, position)) {
                             vec2 other_pos = position[other];
                             vec2 dr = pos - other_pos;
-                            p = p + params.particle_mass * (*params.rho_kernel)(dr, params.h);
+                            p = p + params.particle_mass * (*params.rho_kernel)(dr);
                         }
                     }
                     pho[particle] = p;
@@ -233,7 +233,6 @@ void Fluid2D::acceleration_at(int p_index,
     vec2 pos = position[p_index];
     vec2 vel = velocity[p_index];
     float rho_p = pho_s[p_index];
-    float rho_p_2 = rho_p * 2;
     float pr = params.K * (rho_p - params.rho_0);
 
     /* internal force */
@@ -243,12 +242,12 @@ void Fluid2D::acceleration_at(int p_index,
                 vec2 other_pos = position[other];
                 vec2 dr = pos - other_pos;
                 /* pressure */
-                // f_pressure = - m * (p_i +p_j) / (2 * pho_i) * diff_W(r, h)
-                // a_pressure = f / m = - (p_i +p_j) / (2 * pho_i) * diff_W(r, h)
+                // f_pressure = - m * (p_i +p_j) / (2 * pho_j) * diff_W(r, h)
+                // a_pressure = f / m = - (p_i +p_j) / (2 * pho_j) * diff_W(r, h)
                 // p = K * (pho - pho_0)
                 if (params.pressure_kernel != nullptr) {
-                    vec2 pressure = params.pressure_kernel->diff(dr, params.h) *
-                                    (-1 * (params.K * (pho_s[other] - params.rho_0) + pr) / rho_p_2);
+                    vec2 pressure = params.pressure_kernel->diff(dr) *
+                                    (-0.5f * (params.K * (pho_s[other] - params.rho_0) + pr) / pho_s[other]);
                     ac = ac + pressure;
                 }
                 /* viscosity */
@@ -258,7 +257,7 @@ void Fluid2D::acceleration_at(int p_index,
                     vec2 d_v = velocity[other];
                     d_v = d_v - vel;
                     vec2 viscosity =
-                            d_v * (params.viscosity_kernel->laplace(dr, params.h) * params.V / pho_s[other]);
+                            d_v * (params.viscosity_kernel->laplace(dr) * params.V / pho_s[other]);
                     ac = ac + viscosity;
                 }
 
@@ -268,7 +267,7 @@ void Fluid2D::acceleration_at(int p_index,
                 if (params.surface_tension_kernel != nullptr) {
                     float norm = surf_n.length();
                     if (norm > std::numeric_limits<float>::epsilon()) {
-                        float kappa = -params.surface_tension_kernel->laplace(dr, params.h) / (pho_s[other] * norm);
+                        float kappa = -params.surface_tension_kernel->laplace(dr) / (pho_s[other] * norm);
                         vec2 tension = surf_n * (kappa * params.sigma);
                         ac = ac + tension;
                     }
@@ -284,50 +283,54 @@ void Fluid2D::acceleration_at(int p_index,
 void Fluid2D::update_boundary(int p_index, std::vector<vec2 > &position, std::vector<vec2 > &velocity) const {
     vec2 pos = position[p_index];
     if (pos.x() <= params.left) {
-        position[p_index].x() = params.left + 0.1f;
-        velocity[p_index].x() = 0.1f * std::abs(velocity[p_index].x());
+        position[p_index].x() = params.left + std::numeric_limits<float>::epsilon();
+        velocity[p_index].x() = 0;
     } else if (pos.x() >= params.right) {
-        position[p_index].x() = params.right - 0.1f;
-        velocity[p_index].x() = - 0.1f *  std::abs(velocity[p_index].x());
+        position[p_index].x() = params.right - std::numeric_limits<float>::epsilon();
+        velocity[p_index].x() = - 0;
     }
     if (pos.y() <= params.bottom) {
-        position[p_index].y() = params.bottom + 0.1f;
-        velocity[p_index].y() = 0.1f * std::abs(velocity[p_index].y());
+        position[p_index].y() = params.bottom + std::numeric_limits<float>::epsilon();
+        velocity[p_index].y() = 0;
     } else if (pos.y() >= params.top) {
-        position[p_index].y() = params.top - 0.1f;
-        velocity[p_index].y() = -0.1f * std::abs(velocity[p_index].y());
+        position[p_index].y() = params.top - std::numeric_limits<float>::epsilon();
+        velocity[p_index].y() = -0;
     }
 }
 
 void Fluid2D::render() {
     glScalef(scale, scale, scale);
-    glColor3f(0.3, 0.5, 0.8);
-    glPointSize(2);
-    glBegin(GL_POINTS);
-    std::unique_lock<std::mutex> lk(this->swap_mutex);
-    std::vector<vec2 > lock_positions = back_positions;
-    lk.unlock();
     float center_x = (params.left + params.right) / 2;
     float center_y = (params.top + params.bottom) / 2;
-    for (vec2 &p: lock_positions) {
-        glVertex3f(p.x() - center_x, p.y() - center_y, 0);
-    }
-    glEnd();
+    glTranslatef(- center_x, - center_y, 0);
     // render grid
     glColor3f(0.1, 0.1, 0.1);
     glLineWidth(1);
     glBegin(GL_LINES);
-    float grid_w = (params.right - params.left) / float(grid_col);
-    float grid_h = (params.top - params.bottom) / float(grid_raw);
+    float grid_w = (params.right - params.left + params.h) / float(grid_col);
+    float grid_h = (params.top - params.bottom + params.h) / float(grid_raw);
     for (unsigned int x = 0; x <= grid_col; x++) {
-        glVertex3f(-center_x + grid_w * x, params.top - center_y, 0);
-        glVertex3f(-center_x + grid_w * x, params.bottom - center_y, 0);
+        glVertex3f( grid_w * x - params.h / 2, params.top+ params.h / 2, 0);
+        glVertex3f(grid_w * x - params.h / 2, params.bottom - params.h / 2, 0);
     }
     for (unsigned int y = 0; y <= grid_raw; y++) {
-        glVertex3f(params.left - center_x, -center_y + grid_h * y, 0);
-        glVertex3f(params.right - center_x, -center_y + grid_h * y, 0);
+        glVertex3f(params.left - params.h / 2, grid_h * y - params.h / 2, 0);
+        glVertex3f(params.right + params.h / 2, grid_h * y - params.h / 2, 0);
     }
     glEnd();
+
+    // render particles
+    glColor3f(0.3, 0.5, 0.8);
+    glPointSize(4);
+    glBegin(GL_POINTS);
+    std::unique_lock<std::mutex> lk(this->swap_mutex);
+    std::vector<vec2 > lock_positions = back_positions;
+    lk.unlock();
+    for (vec2 &p: lock_positions) {
+        glVertex3f(p.x(), p.y(), 0);
+    }
+    glEnd();
+
 }
 
 Fluid2D::~Fluid2D() {

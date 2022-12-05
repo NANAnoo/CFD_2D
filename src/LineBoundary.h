@@ -49,9 +49,8 @@ public:
                 (direction.Mul(end_prev) * direction.Mul(start_prev) <= 0)) {
             float mod = (2 - damp) * vel.Mul(normal);
             vec2 dv = normal * mod;
-            vec2 d_pos = dv.normalize() * 0.1;
             all_vel[index] = vel - dv;
-            all_pos[index] = prev_pos - d_pos;
+            all_vel[index] = all_vel[index] * 0.9;
             return true;
         }
 
@@ -64,9 +63,8 @@ public:
                 // and then update velocity, bounce back!
                 float mod =(2 - damp) * vel.Mul(normal);
                 vec2 dv = normal * mod;
-                vec2 d_pos = dv.normalize() * 0.01;
                 all_vel[index] = vel - dv;
-                all_pos[index] = prev_pos - d_pos;
+                all_vel[index] = all_vel[index] * 0.9;
                 return true;
             }
         }
@@ -78,18 +76,18 @@ public:
         vec2 start_a = a - start;
         vec2 start_b = b - start;
         vec2 a_b = b - a;
-        if (normal.Mul(start_a) * normal.Mul(start_b) < 0) {
+        if (normal.Mul(start_a) * normal.Mul(start_b) <= 0) {
             vec2 end_b = b - end;
             vec2 n(a_b.y(), a_b.x());
             // are on two side
-            return n.Mul(start_b) * n.Mul(end_b) < 0;
+            return n.Mul(start_b) * n.Mul(end_b) <= 0;
         }
     }
 
     // draw the line
     void update() override {
         glColor3f(0.8, 0.5, 0.1);
-        glLineWidth(5);
+        glLineWidth(10);
         glBegin(GL_LINES);
         glVertex3f(u_start.x() * 2 - 1, u_start.y() * 2 - 1, 0);
         glVertex3f(u_end.x() * 2 - 1, u_end.y() * 2 - 1, 0);
