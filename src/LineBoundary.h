@@ -50,7 +50,7 @@ public:
             float mod = (2 - damp) * vel.Mul(normal);
             vec2 dv = normal * mod;
             all_vel[index] = vel - dv;
-            all_vel[index] = all_vel[index] * 0.9;
+            all_vel[index] = all_vel[index] * (1 - damp);
             return true;
         }
 
@@ -64,7 +64,7 @@ public:
                 float mod =(2 - damp) * vel.Mul(normal);
                 vec2 dv = normal * mod;
                 all_vel[index] = vel - dv;
-                all_vel[index] = all_vel[index] * 0.9;
+                all_vel[index] = all_vel[index] * (1 - damp);
                 return true;
             }
         }

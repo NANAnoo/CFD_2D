@@ -127,7 +127,7 @@ public:
                     f->params.pressure_kernel = &Poly6<D2>();
                     f->params.viscosity_kernel = nullptr;
                     f->params.surface_tension_kernel = nullptr;
-                    f->params.K = 0.1;
+                    f->params.K = 0.2;
                     f->params.V = 0;
                     f->params.sigma = 0;
                 }
@@ -139,7 +139,7 @@ public:
                     f->params.pressure_kernel = &DebrunSpiky<D2>();
                     f->params.viscosity_kernel = nullptr;
                     f->params.surface_tension_kernel = nullptr;
-                    f->params.K = 0.1;
+                    f->params.K = 0.2;
                     f->params.V = 0;
                     f->params.sigma = 0;
                 }
@@ -190,7 +190,7 @@ int main(int, char **) {
 
     // walls
     float i = 1.f / axis_short_size;
-    float damp = 1;
+    float damp = 0.1;
     std::shared_ptr<LineBoundary> wall_bottom = std::make_shared<LineBoundary>(i * 1, 0.0001, i * 6, 0.0001, damp);
     std::shared_ptr<LineBoundary> wall_left = std::make_shared<LineBoundary>(i * 1, 0.0001, i * 1, i * 5, damp);
     std::shared_ptr<LineBoundary> wall_right = std::make_shared<LineBoundary>(i * 6, 0.0001, i * 6, i * 5, damp);
