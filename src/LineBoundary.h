@@ -78,10 +78,11 @@ public:
         vec2 a_b = b - a;
         if (normal.Mul(start_a) * normal.Mul(start_b) <= 0) {
             vec2 end_b = b - end;
-            vec2 n(a_b.y(), a_b.x());
+            vec2 n(a_b.y(), - a_b.x());
             // are on two side
             return n.Mul(start_b) * n.Mul(end_b) <= 0;
         }
+        return false;
     }
 
     // draw the line
