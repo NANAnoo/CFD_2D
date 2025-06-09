@@ -24,7 +24,7 @@ const float init_w = 2;
 const float init_h = 3;
 
 // grid info
-const float grid_size = 10;
+const float grid_size = 5;
 // particle count of each unit area
 const int p_cnt_per_u = int(16 * 10000 / grid_size / grid_size);
 

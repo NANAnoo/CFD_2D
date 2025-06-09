@@ -21,7 +21,7 @@ struct TicTok {
 Fluid2D::Fluid2D(Fluid2DParameters &params) {
     this->params = params;
     this->scale = 1;
-    pool = new nano_std::ThreadPool(std::thread::hardware_concurrency());
+    pool = new nano_std::ThreadPool(20);
     init();
 }
 
@@ -63,8 +63,7 @@ void Fluid2D::start() {
             this->back_positions = this->positions;
         }
     };
-    dispatcher.insertTask(task);
-    dispatcher.run();
+    dispatcher.run(task);
 }
 
 void Fluid2D::resetWithCallback(std::function<void()> callback) {

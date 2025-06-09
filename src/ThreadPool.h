@@ -4,208 +4,144 @@
 #include <queue>
 #include <thread>
 #include <mutex>
+#include <condition_variable>
 #include <functional>
+#include <vector>
 #include <memory>
-#include <pthread.h>
+#include <future>
+#include <atomic>
 
 namespace nano_std {
+
     template<typename T>
     class TSafeQueue {
     private:
-        std::mutex mut;
         std::queue<T> data_queue;
+        mutable std::mutex mut;
 
     public:
-        TSafeQueue() {
-        }
-
-        TSafeQueue(TSafeQueue const &other) {
-            std::lock_guard<std::mutex> lock(other.mut);
-            data_queue = other.data_queue;
-        }
-
         void push(T value) {
             std::lock_guard<std::mutex> lock(mut);
-            data_queue.push(value);
+            data_queue.push(std::move(value));
         }
 
-        std::shared_ptr<T> pop() {
-            std::lock_guard<std::mutex> lock(mut);
-            std::shared_ptr<T> res(std::make_shared<T>(data_queue.front()));
-            data_queue.pop();
-            return res;
-        }
-
-        std::shared_ptr<T> try_pop() {
+        bool try_pop(T& value) {
             std::lock_guard<std::mutex> lock(mut);
             if (data_queue.empty())
-                return std::shared_ptr<T>();
-            std::shared_ptr<T> res(std::make_shared<T>(data_queue.front()));
+                return false;
+            value = std::move(data_queue.front());
             data_queue.pop();
-            return res;
+            return true;
         }
 
-        bool size() {
+        size_t size() const {
             std::lock_guard<std::mutex> lock(mut);
             return data_queue.size();
         }
 
-        bool empty() {
+        bool empty() const {
             std::lock_guard<std::mutex> lock(mut);
             return data_queue.empty();
         }
 
         void clear() {
             std::lock_guard<std::mutex> lock(mut);
-            while (!data_queue.empty())data_queue.pop();
+            while (!data_queue.empty()) data_queue.pop();
         }
     };
 
     class WorkerThread {
     private:
-        TSafeQueue<std::function<void(void)>> queue;
         std::thread t;
-        std::mutex mux;
-        std::condition_variable thread_returned;
-        std::thread::id tid;
-        std::string name;
-        bool is_running;
-        bool thread_stopped;
-
-        bool isRunning() {
-            std::unique_lock<std::mutex> lock(mux);
-            return is_running;
-        }
-
-        void isRunning(bool running) {
-            std::lock_guard<std::mutex> lock(mux);
-            is_running = running;
-            if (running) {
-                thread_stopped = false;
-            }
-        }
-
+        std::atomic<bool> running;
     public:
-        WorkerThread() {
-            is_running = false;
-            thread_stopped = true;
-        };
-
+        WorkerThread() : running(true) {}
         ~WorkerThread() {
-            queue.clear();
             stop();
         }
 
-        void run() {
-            isRunning(true);
-            t = std::move(std::thread(&WorkerThread::mainLoop, this));
-            tid = t.get_id();
-            t.detach();
-        }
-
-        void setName(std::string n) {
-            std::unique_lock<std::mutex> lock(mux);
-            this->name = n;
-        }
-
-        std::string getName() {
-            std::unique_lock<std::mutex> lock(mux);
-            return this->name;
-        }
-
-
-        void stop() {
-            isRunning(false);
-            std::unique_lock<std::mutex> lock(mux);
-            thread_returned.wait(lock, [this] {
-                std::this_thread::sleep_for(std::chrono::milliseconds(10));
-                return thread_stopped;
+        void run(std::function<void()> loop) {
+            t = std::thread([this, loop]() {
+                while (running) {
+                    loop();
+                }
             });
         }
 
-        void insertTask(std::function<void(void)> &task) {
-            queue.push(task);
-        }
-
-        int remainTasks() {
-            return queue.size();
-        }
-
-        // main loop
-        void mainLoop() {
-            std::string n = getName();
-            if (n.size() > 0) {
-                pthread_setname_np(getName().c_str());
-            }
-            do {
-                if (isRunning() && !queue.empty()) {
-                    std::function<void(void)> task = *(queue.pop());
-                    task();
-                } else {
-                    // else sleep for a while
-                    std::this_thread::sleep_for(std::chrono::milliseconds (1));
-                }
-            } while (isRunning());
-            std::unique_lock<std::mutex> lk(mux);
-            thread_stopped = true;
-            thread_returned.notify_one();
+        void stop() {
+            running = false;
+            if (t.joinable())
+                t.join();
         }
     };
-static int wid = 0;
+
     class ThreadPool {
     private:
         TSafeQueue<std::function<void(void)>> queue;
-        std::vector<WorkerThread *> workers;
-        std::condition_variable is_empty;
-        unsigned int current_index;
-        unsigned int max_index;
+        std::vector<std::unique_ptr<WorkerThread>> workers;
+        std::mutex queue_mutex;
+        std::condition_variable cv_task;
+        std::atomic<bool> stopped{false};
+        unsigned int current_index{0};
+        unsigned int max_index{0};
 
     public:
         explicit ThreadPool(unsigned int count) {
             max_index = count;
-            current_index = 0;
             for (unsigned int i = 0; i < count; i++) {
-                auto *worker = new WorkerThread();
-                worker->setName("nano" + std::to_string(wid++));
-                worker->run();
-                workers.push_back(worker);
+                auto worker = std::make_unique<WorkerThread>();
+                worker->run([this]() {
+                    std::function<void()> task;
+                    {
+                        std::unique_lock<std::mutex> lock(queue_mutex);
+                        cv_task.wait(lock, [this] {
+                            return stopped || !queue.empty();
+                        });
+                        if (stopped && queue.empty()) return;
+                        if (!queue.try_pop(task)) return;
+                    }
+                    task();
+                });
+                workers.push_back(std::move(worker));
             }
-        };
+        }
 
         ~ThreadPool() {
-            for (auto w: workers) {
+            stopped = true;
+            cv_task.notify_all();
+            for (auto& w : workers) {
                 w->stop();
-                delete w;
             }
         }
 
         void doAsync(std::function<void(void)> task) {
-            current_index = (current_index + 1) % max_index;
-            workers[current_index]->insertTask(task);
+            {
+                std::lock_guard<std::mutex> lock(queue_mutex);
+                queue.push(std::move(task));
+            }
+            cv_task.notify_one();
         }
 
         void doSync(std::function<void(void)> task) {
-            std::mutex mux;
-            mux.lock();
-            doAsync([&mux, &task]() {
-                if (task) {
-                    task();
-                }
-                mux.unlock();
+            std::mutex mtx;
+            std::unique_lock<std::mutex> lock(mtx);
+            doAsync([&task, &mtx]() {
+                task();
+                mtx.unlock();
             });
-            mux.lock();
+            mtx.lock(); // wait until unlocked by task
         }
 
         void syncGroup(std::vector<std::function<void(void)>> &tasks, int batch_size = 1) {
             std::vector<std::function<void(void)>> real_tasks;
             if (batch_size > 1) {
-                int real_size = tasks.size() / batch_size + 1;
+                int real_size = tasks.size() / batch_size + (tasks.size() % batch_size != 0);
                 real_tasks.resize(real_size);
-                for (unsigned int i = 0; i < real_size; i++) {
+                for (int i = 0; i < real_size; i++) {
                     real_tasks[i] = [&tasks, i, batch_size]() {
                         for (int j = 0; j < batch_size; j++) {
                             int index = i * batch_size + j;
-                            if (index < tasks.size()) {
+                            if (index < (int)tasks.size()) {
                                 tasks[index]();
                             }
                         }
@@ -214,23 +150,28 @@ static int wid = 0;
             } else {
                 real_tasks = tasks;
             }
+
             int count = real_tasks.size();
             std::mutex mx;
-            for (auto task: real_tasks) {
-                doAsync([task, this, &mx, &count]() {
+            std::condition_variable cv_done;
+
+            for (auto& task : real_tasks) {
+                doAsync([&task, &count, &mx, &cv_done]() {
                     task();
                     std::unique_lock<std::mutex> lock(mx);
-                    if ((--count) == 0) {
-                        is_empty.notify_one();
+                    if (--count == 0) {
+                        cv_done.notify_one();
                     }
                 });
             }
+
             std::unique_lock<std::mutex> lock(mx);
-            is_empty.wait(lock, [&count] {
+            cv_done.wait(lock, [&count]() {
                 return count == 0;
             });
         }
     };
-};
+
+}
 
 #endif // THREAD_POOL_H

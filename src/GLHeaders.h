@@ -7,6 +7,8 @@
 #include <GLFW/glfw3.h>
 #endif
 
+#include <GLFW/glfw3.h>
+
 #include <iostream>
 
 // callback used in glfw windows
